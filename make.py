@@ -6,33 +6,10 @@ import shutil
 
 import librosa
 import soundfile as sf
-from faster_whisper import WhisperModel
 from tqdm import tqdm
 
 import text
 from utils import load_filepaths_and_text
-
-
-def transcribe(speaker):
-   text_path = os.path.join("dataset", "voice_text.txt")
-   if os.path.exists(text_path):
-      print("すでに書き起こしファイルが存在します")
-      return
-
-   model_size = "large-v2"
-   model = WhisperModel(model_size, device="cuda", compute_type="float16")
-   audio = glob.glob("dataset/*.wav")
-   text_list = []
-   for i in tqdm(audio):
-      sound_file = os.path.basename(i)
-      segments, info = model.transcribe(i, beam_size=5, language="ja")
-      text = ""
-      for segment in segments:
-         text += segment.text
-      text_list.append(f"wav/{args.speaker}/{sound_file}|{text}")
-   with open("dataset/voice_text.txt", "w", encoding='utf-8')as f:
-      for i in text_list:
-         f.write(i + "\n")
 
 
 def resample(speaker):
@@ -94,17 +71,16 @@ def make_model(speaker):
 
 
 def main(speaker):
-   tasks = {
-       "transcribe": transcribe,
-       "resample": resample,
-       "make_config": make_config,
-       "val": val,
-       "preprocess": preprocess,
-       "make_model": make_model,
-   }
+   tasks = [
+       resample,
+       make_config,
+       val,
+       preprocess,
+       make_model,
+   ]
 
-   # 辞書内の関数を順番に実行する
-   for task_name, task in tasks.items():
+   # リスト内の関数を順番に実行する
+   for task in tasks:
       task(speaker)
 
 

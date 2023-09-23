@@ -1,4 +1,5 @@
 Cython
+faster-whisper
 gradio
 librosa==0.9.1
 matplotlib
