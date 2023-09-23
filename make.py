@@ -5,20 +5,43 @@ import os
 import shutil
 
 import librosa
-from tqdm import tqdm
 import soundfile as sf
+from faster_whisper import WhisperModel
+from tqdm import tqdm
 
 import text
 from utils import load_filepaths_and_text
 
 
+def transcribe(speaker):
+   text_path = os.path.join("dataset", "voice_text.txt")
+   if os.path.exists(text_path):
+      print("すでに書き起こしファイルが存在します")
+      return
+
+   model_size = "large-v2"
+   model = WhisperModel(model_size, device="cuda", compute_type="float16")
+   audio = glob.glob("dataset/*.wav")
+   text_list = []
+   for i in tqdm(audio):
+      sound_file = os.path.basename(i)
+      segments, info = model.transcribe(i, beam_size=5, language="ja")
+      text = ""
+      for segment in segments:
+         text += segment.text
+      text_list.append(f"wav/{args.speaker}/{sound_file}|{text}")
+   with open("dataset/voice_text.txt", "w", encoding='utf-8')as f:
+      for i in text_list:
+         f.write(i + "\n")
+
+
 def resample(speaker):
    wavs = glob.glob("dataset/*.wav")
+   if not os.path.exists(f"wav/{speaker}"):
+      os.mkdir(f"wav/{speaker}")
    for wavfile in tqdm(wavs):
       y, sr = librosa.load(wavfile, sr=22050, mono=True)
-      name = wavfile.split("\\")[1]
-      if not os.path.exists(f"wav/{speaker}"):
-         os.mkdir(f"wav/{speaker}")
+      name = os.path.basename(wavfile)
       sf.write(f"wav/{speaker}/{name}", y, sr, subtype="PCM_16")
 
 
@@ -53,7 +76,6 @@ def val(speaker):
 def preprocess(speaker):
    filelists = [f"filelists/{speaker}/train.txt", f"filelists/{speaker}/val.txt"]
    for filelist in filelists:
-      print(filelist)
       filepaths_and_text = load_filepaths_and_text(filelist)
       for i in range(len(filepaths_and_text)):
          original_text = filepaths_and_text[i][1]
@@ -67,20 +89,27 @@ def preprocess(speaker):
 def make_model(speaker):
    if os.path.exists(f"save_models/{speaker}") is False:
       os.mkdir(f"save_models/{speaker}")
-   shutil.copy("save_models/D_0-p.pth", f"save_models/{speaker}/D_0-p.pth")
-   shutil.copy("save_models/G_0-p.pth", f"save_models/{speaker}/G_0-p.pth")
+   shutil.copy("save_models/D_0.pth", f"save_models/{speaker}/D_0.pth")
+   shutil.copy("save_models/G_0.pth", f"save_models/{speaker}/G_0.pth")
 
 
 def main(speaker):
-   resample(speaker)
-   make_config(speaker)
-   val(speaker)
-   preprocess(speaker)
-   make_model(speaker)
+   tasks = {
+       "transcribe": transcribe,
+       "resample": resample,
+       "make_config": make_config,
+       "val": val,
+       "preprocess": preprocess,
+       "make_model": make_model,
+   }
+
+   # 辞書内の関数を順番に実行する
+   for task_name, task in tasks.items():
+      task(speaker)
 
 
 if __name__ == "__main__":
    parser = argparse.ArgumentParser()
-   parser.add_argument("--speaker_name", default="speaker")
+   parser.add_argument("--speaker", default="speaker")
    args = parser.parse_args()
-   main(args.speaker_name)
+   main(args.speaker)
